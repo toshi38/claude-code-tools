@@ -7,11 +7,13 @@ allowed-tools: Bash(python3:*), Bash(pwd), Bash(command -v:*), AskUserQuestion
 You are helping the user re-open Claude Code sessions that aren't currently running — including
 ones killed by a crash that never show up in `claude --resume`.
 
-The detector/launcher script is:
-`${CLAUDE_PLUGIN_ROOT}/scripts/claude-session-recover.py`
+**Locating the script.** It is `${CLAUDE_PLUGIN_ROOT}/scripts/claude-session-recover.py`. If that
+path still contains the literal text `${CLAUDE_PLUGIN_ROOT}` — meaning this file is running as a
+standalone `~/.claude/commands/` command rather than from an installed plugin, so the placeholder
+was never substituted — use `~/.claude/scripts/claude-session-recover.py` instead.
 
-Call it as `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/claude-session-recover.py" <subcmd> …`. Below it
-is written as `<script>` for brevity — always substitute the full quoted path above.
+Call it as `python3 "<resolved path>" <subcmd> …`. Below it is written as `<script>` for brevity —
+always substitute the resolved path.
 
 It finds non-live sessions, **scores each one's resume-likelihood**, previews them, and opens them
 as iTerm2 tabs. Your job is to drive it. **Never reopen a session that is already live** — the

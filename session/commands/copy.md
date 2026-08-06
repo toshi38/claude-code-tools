@@ -1,7 +1,7 @@
 ---
 description: Copy content from the conversation to the macOS clipboard
 argument-hint: <what to copy — a candidate number, grep pattern, or description>
-allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/ccopy:*), Bash(pbcopy:*), Bash(cat:*)
+allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/ccopy:*), Bash(~/.claude/scripts/ccopy:*), Bash(for d in:*), Bash(pbcopy:*), Bash(cat:*)
 ---
 
 # Copy to clipboard
@@ -11,7 +11,7 @@ first line starts with `Copied`; otherwise it printed the candidate index —
 `path  [kind]  preview`, newest first, kinds: cmd = bash command, out = output,
 code = fenced code block, txt = assistant text):
 
-!`"${CLAUDE_PLUGIN_ROOT}/scripts/ccopy" $ARGUMENTS || true`
+!`for d in "${CLAUDE_PLUGIN_ROOT}" "$HOME/.claude"; do [ -x "$d/scripts/ccopy" ] && exec "$d/scripts/ccopy" $ARGUMENTS; done; true`
 
 ## Your task
 
