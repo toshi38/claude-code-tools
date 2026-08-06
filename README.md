@@ -51,10 +51,37 @@ the `!` prefix (`! ccopy`, `! ccopy 3`, `! ccopy curl`), which skips the model r
 To get that, symlink it onto your PATH:
 
 ```sh
-ln -s ~/.claude/plugins/marketplaces/toshi38/session/scripts/ccopy ~/.local/bin/ccopy
+ln -s ~/.claude/plugins/cache/<installed-plugin-path>/scripts/ccopy ~/.local/bin/ccopy
 ```
 
-Adjust the source path if your marketplace lives elsewhere — check with `/plugin`.
+Find the installed path with `/plugin`. `ccopy` resolves its helper script relative to its own real
+path, following symlinks, so it works from anywhere on your PATH.
+
+## Want short command names?
+
+Plugin commands are always namespaced — `/session:fork-tab`, never a bare `/fork-tab` — and there's
+no user-side setting to alias or rename them. If you want the short form, install the commands as
+standalone config instead of (or as well as) the plugin. Clone this repo and symlink:
+
+```sh
+git clone https://github.com/toshi38/claude-code-tools ~/code/claude-code-tools
+R=~/code/claude-code-tools/session
+
+for f in fork-tab.md copy.md recover.md; do
+  ln -sfn "$R/commands/$f" ~/.claude/commands/$f
+done
+for f in fork-tab.sh copy-candidates.sh claude-session-recover.py ccopy; do
+  ln -sfn "$R/scripts/$f" ~/.claude/scripts/$f
+done
+```
+
+That gives you `/fork-tab`, `/copy`, `/recover`, running straight from the checkout — so edits take
+effect immediately, with no `/plugin update` step. The command files detect which mode they're in and
+resolve their scripts accordingly, so the same files serve both.
+
+Standalone and plugin installs coexist without conflict: you'd get both `/fork-tab` and
+`/session:fork-tab`. Installing the plugin is the better path if you just want the tools; the symlink
+route is for hacking on them.
 
 ## License
 
