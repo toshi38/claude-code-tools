@@ -1,0 +1,20 @@
+{
+  "name": "toshi38",
+  "owner": {
+    "name": "Stephen Lau",
+    "url": "https://lau.engineering"
+  },
+  "metadata": {
+    "description": "Personal Claude Code tooling for macOS + iTerm2"
+  },
+  "plugins": [
+    {
+      "name": "session",
+      "source": "./session",
+      "displayName": "Session Tools",
+      "description": "Fork the current conversation into a new iTerm tab, recover closed or crashed sessions, and copy content out of a transcript to the clipboard without an LLM reading it.",
+      "category": "productivity",
+      "keywords": ["iterm", "macos", "session", "fork", "recover", "clipboard"]
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Copy content from the current Claude Code session to the clipboard — no LLM.
+# Run inside a session with the ! prefix:
+#   ! ccopy              list copyable candidates (newest first)
+#   ! ccopy 3            copy candidate 3
+#   ! ccopy curl         copy the most recent candidate whose content matches
+#                        the pattern (case-insensitive grep)
+set -euo pipefail
+
+# Resolve this script's real directory, following symlinks, so `copy-candidates.sh`
+# is found whether ccopy runs from the plugin dir or via a symlink on PATH.
+src="${BASH_SOURCE[0]}"
+while [ -L "$src" ]; do
+  dir="$(cd -P "$(dirname "$src")" && pwd)"
+  src="$(readlink "$src")"
+  [[ "$src" != /* ]] && src="$dir/$src"
+done
+HERE="$(cd -P "$(dirname "$src")" && pwd)"
+
+IDX=$("$HERE/copy-candidates.sh")   # rebuilds /tmp/claude-copy
+
+if [[ $# -eq 0 ]]; then
+  printf '%s\n' "$IDX"
+  exit 0
+fi
+
+arg="$*"
+f=""
+if [[ "$arg" =~ ^[0-9]+$ ]]; then
+  f="/tmp/claude-copy/$arg.txt"
+  [[ -f "$f" ]] || { echo "No candidate $arg. Run ccopy with no args to list."; exit 1; }
+else
+  while IFS=$'\t' read -r path _rest; do
+    if grep -qi -- "$arg" "$path" 2>/dev/null; then f="$path"; break; fi
+  done <<<"$IDX"
+  if [[ -z "$f" ]]; then
+    echo "No candidate matching '$arg'. Candidates:"
+    printf '%s\n' "$IDX"
+    exit 1
+  fi
+fi
+
+pbcopy <"$f"
+echo "Copied ($f): $(head -c 400 "$f" | LC_ALL=C tr '\n\t' '  ' | LC_ALL=C cut -c1-80)"
