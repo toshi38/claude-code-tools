@@ -1,6 +1,6 @@
 #!/bin/bash
 # fork-tab.sh <session-id> [--dry-run] [initial prompt...]
-# Opens a new iTerm tab in the CURRENT window running:
+# Opens a new terminal tab (iTerm2 or Ghostty) in the CURRENT window running:
 #   cd <cwd-of-caller> && claude --resume <session-id> --fork-session ['prompt']
 # The cd is derived from pwd here, so it can never be omitted:
 # `claude --resume` only finds sessions belonging to the current folder.
@@ -28,9 +28,40 @@ if [ "$dry" = 1 ]; then
   exit 0
 fi
 
+# Which terminal to drive. CLAUDE_SESSION_TERMINAL (iterm|ghostty) wins; otherwise
+# sniff the host terminal and fall back to iTerm2.
+term="${CLAUDE_SESSION_TERMINAL:-}"
+if [ -z "$term" ]; then
+  if [ "${TERM_PROGRAM:-}" = "ghostty" ] || [ -n "${GHOSTTY_RESOURCES_DIR:-}" ]; then
+    term=ghostty
+  else
+    term=iterm
+  fi
+fi
+
 # Escape for embedding inside an AppleScript double-quoted string.
 esc="${cmd//\\/\\\\}"
 esc="${esc//\"/\\\"}"
+cwd_esc="${cwd//\\/\\\\}"
+cwd_esc="${cwd_esc//\"/\\\"}"
+
+if [ "$term" = ghostty ]; then
+  # `initial input` is typed into the new surface's shell, mirroring iTerm's `write text`.
+  osascript -e "tell application \"Ghostty\"
+  activate
+  set cfg to new surface configuration
+  set initial working directory of cfg to \"$cwd_esc\"
+  set initial input of cfg to \"$esc\" & linefeed
+  try
+    new tab in front window with configuration cfg
+  on error
+    -- No window to attach to (Ghostty was not running).
+    new window with configuration cfg
+  end try
+end tell" >/dev/null
+  echo "Forked ${sid:0:8} into a new Ghostty tab (cwd: $cwd)"
+  exit 0
+fi
 
 if ! osascript -e "tell application \"iTerm\"
   activate

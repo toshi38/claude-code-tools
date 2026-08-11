@@ -6,7 +6,7 @@ closed or crashed, including ones that don't show up in `claude --resume`.
 Subcommands:
   list     emit non-live sessions (filtered by category/query) as a table / json / fzf lines
   preview  pretty-print the tail of one session (used by the fzf preview pane)
-  launch   open the given session ids as iTerm2 tabs (cd <cwd> && claude --resume <id>)
+  launch   open the given session ids as terminal tabs (cd <cwd> && claude --resume <id>)
   pick     interactive fzf picker (multi-select + preview + category hotkeys) -> launch
 
 Detection facts this relies on (see plan):
@@ -659,13 +659,44 @@ def cmd_preview(a):
 
 # ----------------------------------------------------------------------------- launch
 
-def _applescript_for(pairs):
+def _detect_terminal():
+    """iterm | ghostty. CLAUDE_SESSION_TERMINAL wins; otherwise sniff, defaulting to iTerm2."""
+    override = os.environ.get("CLAUDE_SESSION_TERMINAL", "").strip().lower()
+    if override in ("iterm", "ghostty"):
+        return override
+    if (os.environ.get("TERM_PROGRAM", "").lower() == "ghostty"
+            or os.environ.get("GHOSTTY_RESOURCES_DIR")):
+        return "ghostty"
+    return "iterm"
+
+def _as_quote(text):
+    """Escape for embedding inside an AppleScript double-quoted string."""
+    return text.replace("\\", "\\\\").replace('"', '\\"')
+
+def _resume_cmd(cwd, sid):
+    return f"cd {shlex.quote(cwd)} && {shlex.quote(CLAUDE)} --resume {sid}"
+
+def _applescript_ghostty(pairs):
+    """pairs: list of (cwd, id) -> AppleScript opening one Ghostty window, a tab each.
+
+    `initial input` is typed into the new surface's shell, mirroring iTerm's `write text`.
+    """
+    lines = ['tell application "Ghostty"', '  activate']
+    for i, (cwd, sid) in enumerate(pairs):
+        lines += ['  set cfg to new surface configuration',
+                  f'  set initial working directory of cfg to "{_as_quote(cwd)}"',
+                  f'  set initial input of cfg to "{_as_quote(_resume_cmd(cwd, sid))}" & linefeed']
+        lines += ['  set w to new window with configuration cfg'] if i == 0 else \
+                 ['  new tab in w with configuration cfg']
+    lines += ['end tell']
+    return "\n".join(lines)
+
+def _applescript_iterm(pairs):
     """pairs: list of (cwd, id) -> AppleScript opening one iTerm window, a tab each."""
     lines = ['tell application "iTerm"', '  activate',
              '  set w to (create window with default profile)', '  tell w']
     for i, (cwd, sid) in enumerate(pairs):
-        cmd = f"cd {shlex.quote(cwd)} && {shlex.quote(CLAUDE)} --resume {sid}"
-        cmd_as = cmd.replace("\\", "\\\\").replace('"', '\\"')
+        cmd_as = _as_quote(_resume_cmd(cwd, sid))
         if i == 0:
             lines += ['    tell current session of current tab',
                       f'      write text "{cmd_as}"', '    end tell']
@@ -675,6 +706,9 @@ def _applescript_for(pairs):
                       f'      write text "{cmd_as}"', '    end tell']
     lines += ['  end tell', 'end tell']
     return "\n".join(lines)
+
+def _applescript_for(pairs, terminal):
+    return (_applescript_ghostty if terminal == "ghostty" else _applescript_iterm)(pairs)
 
 def resolve(ids):
     """Return (pairs, skipped) where pairs=[(cwd,id)] with an existing dir."""
@@ -689,7 +723,7 @@ def resolve(ids):
             skipped.append((sid, cwd))
     return pairs, skipped
 
-def launch(ids, terminal="iterm"):
+def launch(ids, terminal="auto"):
     pairs, skipped = resolve(ids)
     for sid, cwd in skipped:
         where = f" (dir gone: {_short(cwd)})" if cwd else " (no cwd found)"
@@ -701,8 +735,13 @@ def launch(ids, terminal="iterm"):
         for cwd, sid in pairs:
             print(f"cd {shlex.quote(cwd)} && {shlex.quote(CLAUDE)} --resume {sid}")
         return 0
-    subprocess.run(["osascript", "-e", _applescript_for(pairs)], check=False)
-    print(f"Opened {len(pairs)} tab(s) in a new iTerm window.")
+    if terminal == "auto":
+        terminal = _detect_terminal()
+    # AppleScript hands back the new window/tab specifier; keep it off stdout.
+    subprocess.run(["osascript", "-e", _applescript_for(pairs, terminal)],
+                   check=False, stdout=subprocess.DEVNULL)
+    app = "Ghostty" if terminal == "ghostty" else "iTerm"
+    print(f"Opened {len(pairs)} tab(s) in a new {app} window.")
     return 0
 
 def cmd_launch(a):
@@ -714,13 +753,19 @@ def cmd_launch(a):
 
 # ----------------------------------------------------------------------------- pick (fzf)
 
-def _open_iterm_running(cmd):
-    cmd_as = cmd.replace("\\", "\\\\").replace('"', '\\"')
-    script = ('tell application "iTerm"\n  activate\n'
-              '  set w to (create window with default profile)\n'
-              '  tell w\n    tell current session of current tab\n'
-              f'      write text "{cmd_as}"\n    end tell\n  end tell\nend tell')
-    subprocess.run(["osascript", "-e", script], check=False)
+def _open_terminal_running(cmd):
+    cmd_as = _as_quote(cmd)
+    if _detect_terminal() == "ghostty":
+        script = ('tell application "Ghostty"\n  activate\n'
+                  '  set cfg to new surface configuration\n'
+                  f'  set initial input of cfg to "{cmd_as}" & linefeed\n'
+                  '  new window with configuration cfg\nend tell')
+    else:
+        script = ('tell application "iTerm"\n  activate\n'
+                  '  set w to (create window with default profile)\n'
+                  '  tell w\n    tell current session of current tab\n'
+                  f'      write text "{cmd_as}"\n    end tell\n  end tell\nend tell')
+    subprocess.run(["osascript", "-e", script], check=False, stdout=subprocess.DEVNULL)
 
 def cmd_pick(a):
     if not _which("fzf"):
@@ -728,11 +773,11 @@ def cmd_pick(a):
         return 2
     cwd = a.cwd or os.getcwd()
     # fzf needs a real TTY. If we're not on one (e.g. invoked by the slash command),
-    # relaunch the picker inside its own iTerm window.
+    # relaunch the picker inside its own terminal window.
     if not sys.stdout.isatty():
         relaunch = f"{shlex.quote(PY)} {shlex.quote(SELF)} pick --cwd {shlex.quote(cwd)}"
-        _open_iterm_running(relaunch)
-        print("Opened a session picker in a new iTerm window — choose sessions there "
+        _open_terminal_running(relaunch)
+        print("Opened a session picker in a new terminal window — choose sessions there "
               "(type to search · TAB multi-select · ⏎ to open).")
         return 0
     base = f"{shlex.quote(PY)} {shlex.quote(SELF)} list --format fzf"
@@ -766,7 +811,7 @@ def cmd_pick(a):
     if not ids:
         print("Nothing selected.")
         return 0
-    return launch(ids, "iterm")
+    return launch(ids)
 
 def _which(b):
     return subprocess.run(["bash", "-lc", f"command -v {b}"],
@@ -851,7 +896,8 @@ def main():
 
     pla = sub.add_parser("launch")
     pla.add_argument("--ids", required=True)
-    pla.add_argument("--terminal", default="iterm", choices=["iterm", "print"])
+    pla.add_argument("--terminal", default="auto",
+                     choices=["auto", "iterm", "ghostty", "print"])
     pla.set_defaults(func=cmd_launch)
 
     pk = sub.add_parser("pick")

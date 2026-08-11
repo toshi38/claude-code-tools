@@ -2,7 +2,9 @@
 
 Personal [Claude Code](https://code.claude.com) tooling, distributed as a plugin marketplace.
 
-**Requires macOS + [iTerm2](https://iterm2.com).** Every command here drives iTerm via AppleScript.
+**Requires macOS + [iTerm2](https://iterm2.com) or [Ghostty](https://ghostty.org) 1.3+.**
+The tab-opening commands drive your terminal via AppleScript; which one is auto-detected from
+`$TERM_PROGRAM`, falling back to iTerm2. Force it with `export CLAUDE_SESSION_TERMINAL=ghostty`.
 
 ## Install
 
@@ -19,7 +21,7 @@ That's it on every machine you use — updates come with `/plugin update`.
 
 | Command | What it does |
 | :--- | :--- |
-| `/session:fork-tab [prompt]` | Forks the current conversation into a new iTerm tab under a **new** session id. The original keeps running untouched, so you can drive both independently. Optionally seed the fork with a first prompt. |
+| `/session:fork-tab [prompt]` | Forks the current conversation into a new terminal tab under a **new** session id. The original keeps running untouched, so you can drive both independently. Optionally seed the fork with a first prompt. |
 | `/session:recover [filter]` | Browses sessions that aren't currently running — **including ones killed by a crash that never appear in `claude --resume`** — ranks them by how likely you are to want them back (uncommitted work, open PRs, crashed mid-task), and reopens the ones you pick as tabs. |
 | `/session:copy <what>` | Copies content out of the current transcript to the clipboard **without an LLM reading or retyping it**. Resolves a candidate deterministically by number or grep pattern, then `pbcopy`s the exact bytes. |
 
@@ -36,7 +38,7 @@ Everything degrades gracefully except where noted.
 
 | Tool | Needed by | Required? |
 | :--- | :--- | :--- |
-| iTerm2 | all three | **yes** |
+| iTerm2 or Ghostty 1.3+ | `/session:fork-tab`, `/session:recover` | **yes** (`/session:copy` needs neither) |
 | `jq` | `/session:copy` | **yes** — `brew install jq` |
 | `python3` | `/session:recover` | **yes** (stdlib only, no pip installs) |
 | `fzf` | `/session:recover` | optional — enables the fuzzy picker; without it you get an in-chat flow |
