@@ -659,15 +659,50 @@ def cmd_preview(a):
 
 # ----------------------------------------------------------------------------- launch
 
+TERMINALS = ("iterm", "ghostty")
+
 def _detect_terminal():
-    """iterm | ghostty. CLAUDE_SESSION_TERMINAL wins; otherwise sniff, defaulting to iTerm2."""
-    override = os.environ.get("CLAUDE_SESSION_TERMINAL", "").strip().lower()
-    if override in ("iterm", "ghostty"):
+    """Return the terminal to drive: one of TERMINALS.
+
+    CLAUDE_SESSION_TERMINAL is honoured when it names a supported terminal,
+    ignoring case and surrounding space, and is a hard error otherwise so a
+    typo cannot quietly drive the wrong app. Unset, a Ghostty host shell is
+    recognised by TERM_PROGRAM or GHOSTTY_RESOURCES_DIR; anything else is
+    iTerm2. fork-tab.sh applies the same rule.
+    """
+    raw = os.environ.get("CLAUDE_SESSION_TERMINAL", "")
+    override = raw.strip().lower()
+    if override in TERMINALS:
         return override
+    if override:
+        print(f"error: CLAUDE_SESSION_TERMINAL={raw!r} is not a supported terminal "
+              f"(use {' or '.join(TERMINALS)})", file=sys.stderr)
+        raise SystemExit(2)
     if (os.environ.get("TERM_PROGRAM", "").lower() == "ghostty"
             or os.environ.get("GHOSTTY_RESOURCES_DIR")):
         return "ghostty"
     return "iterm"
+
+def _app_name(terminal):
+    return "Ghostty" if terminal == "ghostty" else "iTerm"
+
+def _run_osascript(script, terminal):
+    """Run `script`, reporting failure on stderr. Returns True when it succeeded.
+
+    osascript echoes the value of the last statement — a window or tab
+    specifier — so its stdout is dropped to keep our own one-line output clean.
+    Errors go to stderr and are surfaced rather than swallowed.
+    """
+    r = subprocess.run(["osascript", "-e", script], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    if r.returncode == 0:
+        return True
+    detail = (r.stderr or "").strip() or f"osascript exited {r.returncode}"
+    print(f"error: could not drive {_app_name(terminal)}: {detail}", file=sys.stderr)
+    if terminal == "ghostty":
+        print("Ghostty needs 1.3+ for AppleScript support; export "
+              "CLAUDE_SESSION_TERMINAL=iterm to use iTerm2 instead.", file=sys.stderr)
+    return False
 
 def _as_quote(text):
     """Escape for embedding inside an AppleScript double-quoted string."""
@@ -679,7 +714,8 @@ def _resume_cmd(cwd, sid):
 def _applescript_ghostty(pairs):
     """pairs: list of (cwd, id) -> AppleScript opening one Ghostty window, a tab each.
 
-    `initial input` is typed into the new surface's shell, mirroring iTerm's `write text`.
+    `initial input` is delivered to each new surface as it starts; the trailing
+    linefeed is what submits the command rather than leaving it at the prompt.
     """
     lines = ['tell application "Ghostty"', '  activate']
     for i, (cwd, sid) in enumerate(pairs):
@@ -733,15 +769,16 @@ def launch(ids, terminal="auto"):
         return 1
     if terminal == "print":
         for cwd, sid in pairs:
-            print(f"cd {shlex.quote(cwd)} && {shlex.quote(CLAUDE)} --resume {sid}")
+            print(_resume_cmd(cwd, sid))
         return 0
     if terminal == "auto":
         terminal = _detect_terminal()
-    # AppleScript hands back the new window/tab specifier; keep it off stdout.
-    subprocess.run(["osascript", "-e", _applescript_for(pairs, terminal)],
-                   check=False, stdout=subprocess.DEVNULL)
-    app = "Ghostty" if terminal == "ghostty" else "iTerm"
-    print(f"Opened {len(pairs)} tab(s) in a new {app} window.")
+    if not _run_osascript(_applescript_for(pairs, terminal), terminal):
+        print("Resume them by hand instead:", file=sys.stderr)
+        for cwd, sid in pairs:
+            print(_resume_cmd(cwd, sid))
+        return 1
+    print(f"Opened {len(pairs)} tab(s) in a new {_app_name(terminal)} window.")
     return 0
 
 def cmd_launch(a):
@@ -753,9 +790,12 @@ def cmd_launch(a):
 
 # ----------------------------------------------------------------------------- pick (fzf)
 
-def _open_terminal_running(cmd):
+def _open_terminal_running(cmd, terminal="auto"):
+    """Open `cmd` in a new terminal window. Returns True when it succeeded."""
+    if terminal == "auto":
+        terminal = _detect_terminal()
     cmd_as = _as_quote(cmd)
-    if _detect_terminal() == "ghostty":
+    if terminal == "ghostty":
         script = ('tell application "Ghostty"\n  activate\n'
                   '  set cfg to new surface configuration\n'
                   f'  set initial input of cfg to "{cmd_as}" & linefeed\n'
@@ -765,7 +805,7 @@ def _open_terminal_running(cmd):
                   '  set w to (create window with default profile)\n'
                   '  tell w\n    tell current session of current tab\n'
                   f'      write text "{cmd_as}"\n    end tell\n  end tell\nend tell')
-    subprocess.run(["osascript", "-e", script], check=False, stdout=subprocess.DEVNULL)
+    return _run_osascript(script, terminal)
 
 def cmd_pick(a):
     if not _which("fzf"):
@@ -775,8 +815,12 @@ def cmd_pick(a):
     # fzf needs a real TTY. If we're not on one (e.g. invoked by the slash command),
     # relaunch the picker inside its own terminal window.
     if not sys.stdout.isatty():
-        relaunch = f"{shlex.quote(PY)} {shlex.quote(SELF)} pick --cwd {shlex.quote(cwd)}"
-        _open_terminal_running(relaunch)
+        relaunch = (f"{shlex.quote(PY)} {shlex.quote(SELF)} pick --cwd {shlex.quote(cwd)}"
+                    f" --terminal {a.terminal}")
+        if not _open_terminal_running(relaunch, a.terminal):
+            print(f"Run the picker yourself instead:\n  {relaunch}", file=sys.stderr)
+            print("Or use the in-chat flow (`/recover --native`).", file=sys.stderr)
+            return 1
         print("Opened a session picker in a new terminal window — choose sessions there "
               "(type to search · TAB multi-select · ⏎ to open).")
         return 0
@@ -811,7 +855,7 @@ def cmd_pick(a):
     if not ids:
         print("Nothing selected.")
         return 0
-    return launch(ids)
+    return launch(ids, a.terminal)
 
 def _which(b):
     return subprocess.run(["bash", "-lc", f"command -v {b}"],
@@ -897,11 +941,12 @@ def main():
     pla = sub.add_parser("launch")
     pla.add_argument("--ids", required=True)
     pla.add_argument("--terminal", default="auto",
-                     choices=["auto", "iterm", "ghostty", "print"])
+                     choices=["auto", *TERMINALS, "print"])
     pla.set_defaults(func=cmd_launch)
 
     pk = sub.add_parser("pick")
     pk.add_argument("--cwd", default=None)
+    pk.add_argument("--terminal", default="auto", choices=["auto", *TERMINALS])
     pk.set_defaults(func=cmd_pick)
 
     pm = sub.add_parser("mark-done")

@@ -45,16 +45,27 @@ if [ "$dry" = 1 ]; then
   exit 0
 fi
 
-# Which terminal to drive. CLAUDE_SESSION_TERMINAL (iterm|ghostty) wins; otherwise
-# sniff the host terminal and fall back to iTerm2.
-term="${CLAUDE_SESSION_TERMINAL:-}"
-if [ -z "$term" ]; then
-  if [ "${TERM_PROGRAM:-}" = "ghostty" ] || [ -n "${GHOSTTY_RESOURCES_DIR:-}" ]; then
-    term=ghostty
-  else
-    term=iterm
-  fi
-fi
+# Which terminal to drive. CLAUDE_SESSION_TERMINAL names it outright, ignoring
+# case and surrounding space, and anything else it names is an error so a typo
+# cannot quietly drive the wrong app. Unset, a Ghostty host shell is recognised
+# by TERM_PROGRAM or GHOSTTY_RESOURCES_DIR; anything else is iTerm2.
+# claude-session-recover.py applies the same rule.
+term="$(printf %s "${CLAUDE_SESSION_TERMINAL:-}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+case "$term" in
+  iterm|ghostty) ;;
+  "")
+    if [ "$(printf %s "${TERM_PROGRAM:-}" | tr '[:upper:]' '[:lower:]')" = ghostty ] \
+       || [ -n "${GHOSTTY_RESOURCES_DIR:-}" ]; then
+      term=ghostty
+    else
+      term=iterm
+    fi
+    ;;
+  *)
+    echo "error: CLAUDE_SESSION_TERMINAL='${CLAUDE_SESSION_TERMINAL}' is not a supported terminal (use iterm or ghostty)" >&2
+    exit 2
+    ;;
+esac
 
 # Escape for embedding inside an AppleScript double-quoted string.
 esc="${cmd//\\/\\\\}"
@@ -63,19 +74,22 @@ cwd_esc="${cwd//\\/\\\\}"
 cwd_esc="${cwd_esc//\"/\\\"}"
 
 if [ "$term" = ghostty ]; then
-  # `initial input` is typed into the new surface's shell, mirroring iTerm's `write text`.
-  osascript -e "tell application \"Ghostty\"
+  # `initial input` is delivered to the new surface as it starts; the trailing
+  # linefeed is what submits the command rather than leaving it at the prompt.
+  ghostty_cfg="tell application \"Ghostty\"
   activate
   set cfg to new surface configuration
   set initial working directory of cfg to \"$cwd_esc\"
-  set initial input of cfg to \"$esc\" & linefeed
-  try
-    new tab in front window with configuration cfg
-  on error
-    -- No window to attach to (Ghostty was not running).
-    new window with configuration cfg
-  end try
+  set initial input of cfg to \"$esc\" & linefeed"
+  if ! osascript -e "$ghostty_cfg
+  new tab in front window with configuration cfg
+end tell" >/dev/null 2>&1; then
+    # No front window to attach to — open one instead. This attempt keeps its
+    # stderr so a real failure (Ghostty older than 1.3, say) is not swallowed.
+    osascript -e "$ghostty_cfg
+  new window with configuration cfg
 end tell" >/dev/null
+  fi
   echo "Forked ${sid:0:8} into a new Ghostty tab (cwd: $cwd)"
   exit 0
 fi
