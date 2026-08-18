@@ -102,6 +102,10 @@ category word together with `--native`, or when fzf is missing.)
   if so, the script says exactly that; suggest **recent** or **all** / a keyword search instead.
 - Sessions resume by id and continue the same transcript; opening one is safe and non-destructive.
 - iTerm2 and Ghostty are both supported; the terminal is auto-detected from the host terminal and
-  falls back to iTerm2. Override with `--terminal iterm|ghostty` on `launch`, or by exporting
-  `CLAUDE_SESSION_TERMINAL`. The picker and `launch` both open a single new window with one tab
-  per session.
+  falls back to iTerm2. Override with `--terminal iterm|ghostty` on `launch` or `pick` (default
+  `auto`), or by exporting `CLAUDE_SESSION_TERMINAL=iterm|ghostty` — any other value is rejected
+  with an error rather than guessed at. The picker and `launch` both open a single new window with
+  one tab per session.
+- If the terminal can't be driven (Ghostty older than 1.3, automation permission denied), `launch`
+  says so on stderr, prints the resume commands to run by hand, and exits non-zero — it never
+  reports tabs it didn't open. Relay that instead of a success count.

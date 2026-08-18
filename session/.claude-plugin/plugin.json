@@ -1,7 +1,7 @@
 {
   "name": "session",
   "version": "0.1.0",
-  "description": "Session tooling for Claude Code on macOS + iTerm2: fork the current conversation into a new tab, recover closed or crashed sessions, and copy transcript content to the clipboard deterministically.",
+  "description": "Session tooling for Claude Code on macOS + iTerm2 or Ghostty: fork the current conversation into a new tab, recover closed or crashed sessions, and copy transcript content to the clipboard deterministically.",
   "author": {
     "name": "Stephen Lau",
     "url": "https://lau.engineering"
@@ -9,5 +9,5 @@
   "repository": "https://github.com/toshi38/claude-code-tools",
   "homepage": "https://github.com/toshi38/claude-code-tools/tree/main/session",
   "license": "MIT",
-  "keywords": ["iterm", "macos", "session", "fork", "recover", "clipboard", "transcript"]
+  "keywords": ["iterm", "ghostty", "macos", "session", "fork", "recover", "clipboard", "transcript"]
 }

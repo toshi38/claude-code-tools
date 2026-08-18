@@ -25,7 +25,8 @@ the script derives the fork's directory from pwd):
 - If `$ARGUMENTS` is non-empty, pass it after the session ID as the fork's first prompt
   (quote it as a single shell argument).
 
-The script opens a new tab (iTerm2 or Ghostty, auto-detected) running
+The script opens a new tab (iTerm2 or Ghostty, auto-detected from the host terminal; override
+by exporting `CLAUDE_SESSION_TERMINAL=iterm|ghostty`) running
 `cd <cwd> && claude --resume <id> --fork-session`, which resumes this conversation under a NEW
 session ID — this session keeps running untouched and both can be driven independently. The
 script prepends a handshake to the fork's first prompt telling it the parent (you) is still

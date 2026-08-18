@@ -2,9 +2,11 @@
 
 Personal [Claude Code](https://code.claude.com) tooling, distributed as a plugin marketplace.
 
-**Requires macOS + [iTerm2](https://iterm2.com) or [Ghostty](https://ghostty.org) 1.3+.**
-The tab-opening commands drive your terminal via AppleScript; which one is auto-detected from
-`$TERM_PROGRAM`, falling back to iTerm2. Force it with `export CLAUDE_SESSION_TERMINAL=ghostty`.
+**Requires macOS.** The tab-opening commands — `/session:fork-tab` and `/session:recover` —
+additionally need [iTerm2](https://iterm2.com) or [Ghostty](https://ghostty.org) 1.3+, which they
+drive via AppleScript. The terminal is auto-detected from `$TERM_PROGRAM` or
+`$GHOSTTY_RESOURCES_DIR`, falling back to iTerm2. Force it with
+`export CLAUDE_SESSION_TERMINAL=iterm` or `=ghostty`.
 
 ## Install
 
@@ -38,7 +40,7 @@ Everything degrades gracefully except where noted.
 
 | Tool | Needed by | Required? |
 | :--- | :--- | :--- |
-| iTerm2 or Ghostty 1.3+ | `/session:fork-tab`, `/session:recover` | **yes** (`/session:copy` needs neither) |
+| iTerm2 or Ghostty 1.3+ | `/session:fork-tab`, `/session:recover` | **yes** — or `launch --terminal print` for commands only |
 | `jq` | `/session:copy` | **yes** — `brew install jq` |
 | `python3` | `/session:recover` | **yes** (stdlib only, no pip installs) |
 | `fzf` | `/session:recover` | optional — enables the fuzzy picker; without it you get an in-chat flow |
