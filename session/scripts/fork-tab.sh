@@ -30,11 +30,11 @@ else
   prompt="$handshake No task was given at fork time: introduce yourself to the parent now, then await instructions."
 fi
 
-# The prompt travels via a temp file, never inline on the typed command: the
-# terminal types the command into the new tab before the shell is ready, and
-# the tty's canonical-mode input buffer silently drops lines longer than 1024
-# bytes (MAX_CANON) — the handshake alone would blow that and leave the command
-# truncated and unexecuted at the prompt.
+# The prompt travels via a temp file, never inline on the typed command: both
+# iTerm's `write text` and Ghostty's `initial input` reach the new tab before
+# the shell is ready, and the tty's canonical-mode input buffer silently drops
+# lines longer than 1024 bytes (MAX_CANON) — the handshake alone would blow
+# that and leave the command truncated and unexecuted at the prompt.
 promptfile="$(mktemp -t fork-tab-prompt)"
 printf '%s' "$prompt" > "$promptfile"
 

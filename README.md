@@ -45,6 +45,17 @@ Everything degrades gracefully except where noted.
 | `python3` | `/session:recover` | **yes** (stdlib only, no pip installs) |
 | `fzf` | `/session:recover` | optional — enables the fuzzy picker; without it you get an in-chat flow |
 | `gh` | `/session:recover` | optional — enables PR-merged detection when ranking |
+
+## Tests
+
+`tests/terminal-tests.sh` covers terminal selection, the AppleScript each terminal gets, and how
+failures are reported. It runs against a stub `osascript` and opens nothing. Pass `--live` to also
+drive the real iTerm2 and Ghostty, which opens a window per check and closes it again.
+
+```bash
+bash tests/terminal-tests.sh          # offline
+bash tests/terminal-tests.sh --live   # plus real terminal windows
+```
 | `git` | `/session:recover` | optional — enables uncommitted/unpushed-work ranking |
 | `bd` ([beads](https://github.com/steveyegge/beads)) | `/session:recover` verdicts | optional — without it, `mark-done`/`snooze` won't persist |
 
