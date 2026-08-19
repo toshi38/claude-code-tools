@@ -16,7 +16,7 @@ Call it as `python3 "<resolved path>" <subcmd> …`. Below it is written as `<sc
 always substitute the resolved path.
 
 It finds non-live sessions, **scores each one's resume-likelihood**, previews them, and opens them
-as iTerm2 tabs. Your job is to drive it. **Never reopen a session that is already live** — the
+as terminal tabs. Your job is to drive it. **Never reopen a session that is already live** — the
 script excludes those automatically, so always go through it rather than guessing session ids.
 
 ## Resume-likelihood (why noise is hidden)
@@ -65,7 +65,7 @@ Run:
 ```
 python3 <script> pick --cwd "<pwd>"
 ```
-This pops a picker in a new iTerm window where the user fuzzy-searches, multi-selects with TAB,
+This pops a picker in a new terminal window where the user fuzzy-searches, multi-selects with TAB,
 toggles categories with `^C` (crashed) / `^F` (this folder) / `^A` (all), and presses Enter to open
 the chosen sessions as tabs. Tell them to drive it there. You're done — do not also run the native
 flow.
@@ -101,5 +101,11 @@ category word together with `--native`, or when fzf is missing.)
 - `crashed` is precise but can be empty if Claude already swept stale heartbeats after the restart —
   if so, the script says exactly that; suggest **recent** or **all** / a keyword search instead.
 - Sessions resume by id and continue the same transcript; opening one is safe and non-destructive.
-- Default terminal is iTerm2. The picker and `launch` both open a single new iTerm window with one
-  tab per session.
+- iTerm2 and Ghostty are both supported; the terminal is auto-detected from the host terminal and
+  falls back to iTerm2. Override with `--terminal iterm|ghostty` on `launch` or `pick` (default
+  `auto`), or by exporting `CLAUDE_SESSION_TERMINAL=iterm|ghostty` — any other value is rejected
+  with an error rather than guessed at. The picker and `launch` both open a single new window with
+  one tab per session.
+- If the terminal can't be driven (Ghostty older than 1.3, automation permission denied), `launch`
+  says so on stderr, prints the resume commands to run by hand, and exits non-zero — it never
+  reports tabs it didn't open. Relay that instead of a success count.

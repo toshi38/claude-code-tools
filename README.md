@@ -2,7 +2,11 @@
 
 Personal [Claude Code](https://code.claude.com) tooling, distributed as a plugin marketplace.
 
-**Requires macOS + [iTerm2](https://iterm2.com).** Every command here drives iTerm via AppleScript.
+**Requires macOS.** The tab-opening commands — `/session:fork-tab` and `/session:recover` —
+additionally need [iTerm2](https://iterm2.com) or [Ghostty](https://ghostty.org) 1.3+, which they
+drive via AppleScript. The terminal is auto-detected from `$TERM_PROGRAM` or
+`$GHOSTTY_RESOURCES_DIR`, falling back to iTerm2. Force it with
+`export CLAUDE_SESSION_TERMINAL=iterm` or `=ghostty`.
 
 ## Install
 
@@ -19,7 +23,7 @@ That's it on every machine you use — updates come with `/plugin update`.
 
 | Command | What it does |
 | :--- | :--- |
-| `/session:fork-tab [prompt]` | Forks the current conversation into a new iTerm tab under a **new** session id. The original keeps running untouched, so you can drive both independently. Optionally seed the fork with a first prompt. |
+| `/session:fork-tab [prompt]` | Forks the current conversation into a new terminal tab under a **new** session id. The original keeps running untouched, so you can drive both independently. Optionally seed the fork with a first prompt. |
 | `/session:recover [filter]` | Browses sessions that aren't currently running — **including ones killed by a crash that never appear in `claude --resume`** — ranks them by how likely you are to want them back (uncommitted work, open PRs, crashed mid-task), and reopens the ones you pick as tabs. |
 | `/session:copy <what>` | Copies content out of the current transcript to the clipboard **without an LLM reading or retyping it**. Resolves a candidate deterministically by number or grep pattern, then `pbcopy`s the exact bytes. |
 
@@ -36,11 +40,22 @@ Everything degrades gracefully except where noted.
 
 | Tool | Needed by | Required? |
 | :--- | :--- | :--- |
-| iTerm2 | all three | **yes** |
+| iTerm2 or Ghostty 1.3+ | `/session:fork-tab`, `/session:recover` | **yes** — or `launch --terminal print` for commands only |
 | `jq` | `/session:copy` | **yes** — `brew install jq` |
 | `python3` | `/session:recover` | **yes** (stdlib only, no pip installs) |
 | `fzf` | `/session:recover` | optional — enables the fuzzy picker; without it you get an in-chat flow |
 | `gh` | `/session:recover` | optional — enables PR-merged detection when ranking |
+
+## Tests
+
+`tests/terminal-tests.sh` covers terminal selection, the AppleScript each terminal gets, and how
+failures are reported. It runs against a stub `osascript` and opens nothing. Pass `--live` to also
+drive the real iTerm2 and Ghostty, which opens a window per check and closes it again.
+
+```bash
+bash tests/terminal-tests.sh          # offline
+bash tests/terminal-tests.sh --live   # plus real terminal windows
+```
 | `git` | `/session:recover` | optional — enables uncommitted/unpushed-work ranking |
 | `bd` ([beads](https://github.com/steveyegge/beads)) | `/session:recover` verdicts | optional — without it, `mark-done`/`snooze` won't persist |
 

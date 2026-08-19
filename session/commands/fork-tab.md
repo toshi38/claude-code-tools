@@ -1,10 +1,10 @@
 ---
-description: Fork this conversation into a new iTerm tab (current session keeps running); both tabs are told about each other and coordinate via SendMessage
+description: Fork this conversation into a new terminal tab (current session keeps running); both tabs are told about each other and coordinate via SendMessage
 argument-hint: "[optional first prompt for the forked session]"
 allowed-tools: Bash(${CLAUDE_PLUGIN_ROOT}/scripts/fork-tab.sh:*), Bash(~/.claude/scripts/fork-tab.sh:*), Bash(ls:*)
 ---
 
-# Fork into a new iTerm tab
+# Fork into a new terminal tab
 
 **Locating the script.** It is `${CLAUDE_PLUGIN_ROOT}/scripts/fork-tab.sh`. If that path above
 still contains the literal text `${CLAUDE_PLUGIN_ROOT}` — meaning this file is running as a
@@ -25,12 +25,13 @@ the script derives the fork's directory from pwd):
 - If `$ARGUMENTS` is non-empty, pass it after the session ID as the fork's first prompt
   (quote it as a single shell argument).
 
-The script opens a new iTerm tab running `cd <cwd> && claude --resume <id> --fork-session`,
-which resumes this conversation under a NEW session ID — this session keeps running
-untouched and both can be driven independently. The script prepends a handshake to the
-fork's first prompt telling it the parent (you) is still running in another tab with the
-same working directory, and instructing it to find you via ListAgents and introduce
-itself via SendMessage, mentioning your session id prefix.
+The script opens a new tab (iTerm2 or Ghostty, auto-detected from the host terminal; override
+by exporting `CLAUDE_SESSION_TERMINAL=iterm|ghostty`) running
+`cd <cwd> && claude --resume <id> --fork-session`, which resumes this conversation under a NEW
+session ID — this session keeps running untouched and both can be driven independently. The
+script prepends a handshake to the fork's first prompt telling it the parent (you) is still
+running in another tab with the same working directory, and instructing it to find you via
+ListAgents and introduce itself via SendMessage, mentioning your session id prefix.
 
 When it succeeds, relay the script's one-line confirmation verbatim, plus one sentence
 noting the fork will introduce itself via SendMessage.
