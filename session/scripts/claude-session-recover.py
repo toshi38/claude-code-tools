@@ -708,8 +708,17 @@ def _as_quote(text):
     """Escape for embedding inside an AppleScript double-quoted string."""
     return text.replace("\\", "\\\\").replace('"', '\\"')
 
+# A terminal that is not already running is launched by `activate` from this
+# process and inherits its environment, so the new tab would hand the resumed
+# session the parent's Claude Code markers. CLAUDE_CODE_CHILD_SESSION alone
+# turns off transcript saving and peer registration.
+SCRUB_ENV = ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_CHILD_SESSION",
+             "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_MESSAGING_SOCKET",
+             "CLAUDE_CODE_MESSAGING_TOKEN", "CLAUDE_PID", "CLAUDE_SESSION_TERMINAL")
+
 def _resume_cmd(cwd, sid):
-    return f"cd {shlex.quote(cwd)} && {shlex.quote(CLAUDE)} --resume {sid}"
+    scrub = " ".join(f"-u {v}" for v in SCRUB_ENV)
+    return f"cd {shlex.quote(cwd)} && env {scrub} {shlex.quote(CLAUDE)} --resume {sid}"
 
 def _applescript_ghostty(pairs):
     """pairs: list of (cwd, id) -> AppleScript opening one Ghostty window, a tab each.

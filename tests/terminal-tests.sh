@@ -16,7 +16,11 @@ live=0
 [ "${1:-}" = "--live" ] && live=1
 
 tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
+# fork-tab.sh leaves its prompt temp file behind for the new tab to read, and
+# macOS mktemp -t ignores TMPDIR, so sweep whatever this run created.
+sysmp="$(dirname "$(mktemp -u -t sweep)")"
+marker="$tmp/.started"; : > "$marker"
+trap 'find "$sysmp" -maxdepth 1 -name "fork-tab-prompt.*" -newer "$marker" -delete 2>/dev/null; rm -rf "$tmp"' EXIT
 pass=0; fail=0; skip=0
 
 ok()   { printf '  \033[32mPASS\033[0m %s\n' "$1"; pass=$((pass+1)); }
@@ -105,7 +109,7 @@ group "Preview modes open nothing"
 stub_reset
 out="$(forkrun "$sid" --dry-run "a prompt")"
 is "fork-tab --dry-run drives no terminal" "$(stub_count)" "0"
-case "$out" in "cd "*" && claude --resume $sid --fork-session"*) ok "fork-tab --dry-run prints the command" ;;
+case "$out" in "cd "*"claude --resume $sid --fork-session"*) ok "fork-tab --dry-run prints the command" ;;
                *) bad "fork-tab --dry-run prints the command" "$out" ;; esac
 stub_reset
 out="$(STUB_DIR="$tmp/stub" PATH="$tmp/bin:$PATH" python3 "$REC" launch --terminal print --ids "$sid" 2>/dev/null)"

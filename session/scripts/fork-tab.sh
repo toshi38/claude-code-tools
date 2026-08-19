@@ -38,7 +38,19 @@ fi
 promptfile="$(mktemp -t fork-tab-prompt)"
 printf '%s' "$prompt" > "$promptfile"
 
-cmd="cd $(printf %q "$cwd") && claude --resume $sid --fork-session \"\$(cat $(printf %q "$promptfile"))\""
+# A terminal that is not already running is launched by `activate` from this
+# process, and inherits its environment: the new tab would then hand the fork
+# the parent's Claude Code markers. CLAUDE_CODE_CHILD_SESSION alone turns off
+# transcript saving and peer registration, leaving a fork that cannot be
+# recovered later or found over SendMessage.
+scrub=env
+for v in CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_CHILD_SESSION \
+         CLAUDE_CODE_SESSION_ID CLAUDE_CODE_MESSAGING_SOCKET \
+         CLAUDE_CODE_MESSAGING_TOKEN CLAUDE_PID CLAUDE_SESSION_TERMINAL; do
+  scrub="$scrub -u $v"
+done
+
+cmd="cd $(printf %q "$cwd") && $scrub claude --resume $sid --fork-session \"\$(cat $(printf %q "$promptfile"); rm -f $(printf %q "$promptfile"))\""
 
 if [ "$dry" = 1 ]; then
   echo "$cmd"
