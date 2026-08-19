@@ -66,31 +66,40 @@ sid="$(ls -t "$HOME"/.claude/projects/*/*.jsonl 2>/dev/null | head -1 | xargs -I
 
 # ---------------------------------------------------------------- detection
 group "Terminal detection is one contract, applied by both scripts"
-while IFS='|' read -r override termprog expect; do
-  [ -z "$override$termprog$expect" ] && continue
+# Every input _detect_terminal reads is set explicitly, GHOSTTY_RESOURCES_DIR
+# included: it is exported by Ghostty's own shell integration, so leaving it to
+# the ambient environment would make this matrix agree with whichever terminal
+# happens to be running the suite.
+gdir=/Applications/Ghostty.app/Contents/Resources/ghostty
+while IFS='|' read -r override termprog gres expect; do
+  [ -z "$override$termprog$gres$expect" ] && continue
+  [ "$gres" = "SET" ] && gres="$gdir" || gres=""
   stub_reset
   sh_out="$(STUB_DIR="$tmp/stub" PATH="$tmp/bin:$PATH" CLAUDE_SESSION_TERMINAL="$override" \
-            TERM_PROGRAM="$termprog" bash "$FORK" "$sid" 2>/dev/null)"
+            TERM_PROGRAM="$termprog" GHOSTTY_RESOURCES_DIR="$gres" bash "$FORK" "$sid" 2>/dev/null)"
   case "$sh_out" in *Ghostty*) sh_term=ghostty ;; *iTerm*) sh_term=iterm ;; *) sh_term=error ;; esac
   py_term="$(CLAUDE_SESSION_TERMINAL="$override" TERM_PROGRAM="$termprog" \
+             GHOSTTY_RESOURCES_DIR="$gres" \
              pyeval "print(m._detect_terminal())" 2>/dev/null || echo error)"
-  label="CLAUDE_SESSION_TERMINAL='$override' TERM_PROGRAM='$termprog'"
+  label="TERMINAL='$override' TERM_PROGRAM='$termprog' GHOSTTY_RESOURCES_DIR='${gres:+set}'"
   if [ "$sh_term" != "$py_term" ]; then
     bad "$label" "fork-tab says '$sh_term', recover says '$py_term'"
   else
     is "$label -> $expect" "$sh_term" "$expect"
   fi
 done <<'CASES'
-|ghostty|ghostty
-|Ghostty|ghostty
-||iterm
-|iTerm.app|iterm
-ghostty||ghostty
-GHOSTTY||ghostty
- ghostty ||ghostty
-iterm|ghostty|iterm
-kitty|ghostty|error
-iterm2||error
+|ghostty||ghostty
+|Ghostty||ghostty
+|||iterm
+|iTerm.app||iterm
+||SET|ghostty
+|iTerm.app|SET|ghostty
+ghostty|||ghostty
+GHOSTTY|||ghostty
+ ghostty |||ghostty
+iterm|ghostty|SET|iterm
+kitty|ghostty||error
+iterm2|||error
 CASES
 
 group "An unsupported override is refused, not guessed at"
